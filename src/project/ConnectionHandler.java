@@ -3,7 +3,9 @@ package project;
 import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -18,17 +20,29 @@ public class ConnectionHandler implements Runnable,Messagable {
     private ObjectInputStream clientInputStream;
     private int id;
     private int globalMapSeed;
+    private int totalNumPlayers;
+    private PlayerState currentPlayerState;
 
-    public ConnectionHandler(Socket clientSocket, Messagable sender, int id, int globalMapSeed) {
+    //first thing to send to client = client id (for distinguishing person objects)
+    // seed for map and total number of players
+    public ConnectionHandler(Socket clientSocket, Messagable sender, int id,
+                             int globalMapSeed, int totalNumPlayers) {
         this.clientSocket = clientSocket;
         this.mainServer = sender;
         this.id = id;
         this.globalMapSeed = globalMapSeed;
+        this.totalNumPlayers = totalNumPlayers;
         this.messages = new ArrayBlockingQueue<>(100);
+
         try {
             clientOutputStream = new ObjectOutputStream(clientSocket.getOutputStream());
             clientInputStream = new ObjectInputStream(clientSocket.getInputStream());
+            //send seed
             clientOutputStream.writeObject(globalMapSeed);
+            //send client id
+            clientOutputStream.writeObject(id);
+            //send total number of players
+            clientOutputStream.writeObject(totalNumPlayers);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -46,17 +60,15 @@ public class ConnectionHandler implements Runnable,Messagable {
                 Object message = messages.take();
                 if (message instanceof Message.GatherState) {
                     //read state of player from socket
-                    PlayerState playerState = (PlayerState) clientInputStream.readObject();
+                    currentPlayerState = (PlayerState) clientInputStream.readObject();
                     //forward state to server
-                    mainServer.sendMessage(new PlayerStateWithID(playerState,id));
+                    mainServer.sendMessage(currentPlayerState);
                 } else if (message instanceof Message.SendState) {
-                    List<PlayerStateWithID> allState = ((Message.SendState) message).getAllPlayers();
-                    List<PlayerState> stateOfAllOtherPlayers = new ArrayList<>();
-                    for (PlayerStateWithID playerStateWithID : allState) {
-                        if (playerStateWithID.getId() != this.id) {
-                            stateOfAllOtherPlayers.add(playerStateWithID.getPlayerState());
-                        }
-                    }
+                    //mainserver tells us to forward state of all clients to our socket
+                    Set<PlayerState> allState = ((Message.SendState) message).getAllPlayers();
+                    Set<PlayerState> stateOfAllOtherPlayers = new HashSet<>(allState);
+                    stateOfAllOtherPlayers.remove(currentPlayerState);
+                    //only forward the information of all players except this player
                     clientOutputStream.writeObject(stateOfAllOtherPlayers);
                 }
             } catch (InterruptedException | IOException | ClassNotFoundException e) {
@@ -64,6 +76,4 @@ public class ConnectionHandler implements Runnable,Messagable {
             }
         }
     }
-
-
 }

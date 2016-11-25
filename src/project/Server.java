@@ -3,9 +3,7 @@ package project;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -17,7 +15,7 @@ import java.util.concurrent.BlockingQueue;
  * and then broadcast all state to all clients
  */
 public class Server implements Messagable {
-    private static final int NUM_CLIENTS = 2;
+    private static final long MILLISECONDS_TO_WAIT_FOR_CLIENTS= 20000;
     private int currentNumClients;
     private List<ConnectionHandler> clients;
     private ServerSocket serverSocket;
@@ -36,8 +34,11 @@ public class Server implements Messagable {
         globalMapSeed = new Random().nextInt();
     }
 
+    //accept clients until 20 second timer runs out
     public void acceptConnections() {
-        while (currentNumClients < NUM_CLIENTS) {
+        long currentTime = System.currentTimeMillis();
+        List<Socket> clientSockets = new ArrayList<>();
+        while (System.currentTimeMillis() < currentTime + MILLISECONDS_TO_WAIT_FOR_CLIENTS) {
             Socket clientSocket = null;
             try {
                 clientSocket = serverSocket.accept();
@@ -46,12 +47,17 @@ public class Server implements Messagable {
                 e.printStackTrace();
             }
             //delegate to new thread
-            ConnectionHandler connectionHandler =
-                    new ConnectionHandler(clientSocket, this, currentNumClients, globalMapSeed);
-            clients.add(connectionHandler);
-
-            new Thread(connectionHandler).start();
+            clientSockets.add(clientSocket);
             currentNumClients++;
+        }
+
+        for (int i = 0; i < currentNumClients; i++) {
+            ConnectionHandler connectionHandler =
+                    new ConnectionHandler(clientSockets.get(i), this,
+                            currentNumClients, globalMapSeed, currentNumClients);
+            clients.add(connectionHandler);
+            new Thread(connectionHandler).start();
+            System.out.println("Starting client connection...");
         }
     }
 
@@ -63,9 +69,9 @@ public class Server implements Messagable {
                 for (ConnectionHandler client : clients) {
                     client.sendMessage(new Message.GatherState());
                 }
-                List<PlayerStateWithID> allPlayerState = new ArrayList<>();
+                Set<PlayerState> allPlayerState = new HashSet<>();
                 for (int i = 0; i < currentNumClients; i++) {
-                    PlayerStateWithID playerStateWithID = (PlayerStateWithID) messages.take();
+                    PlayerState playerStateWithID = (PlayerState) messages.take();
                     allPlayerState.add(playerStateWithID);
                 }
                 System.out.println("All state: \n" + allPlayerState.toString());
