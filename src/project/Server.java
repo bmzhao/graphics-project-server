@@ -3,9 +3,13 @@ package project;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Created by brianzhao on 11/23/16.
@@ -14,17 +18,20 @@ import java.util.concurrent.BlockingQueue;
  * Each client on separate socket, wait until we have all clients state,
  * and then broadcast all state to all clients
  */
-public class Server implements Messagable {
-    private static final long MILLISECONDS_TO_WAIT_FOR_CLIENTS= 20000;
+public class Server {
+    private static final long MILLISECONDS_TO_WAIT_FOR_CLIENTS = 20000;
     private int currentNumClients;
     private List<ConnectionHandler> clients;
     private ServerSocket serverSocket;
     private BlockingQueue<Object> messages;
     private int globalMapSeed;
+    private Map<Integer, PlayerState> allPlayerState;
+    private List<Thread> clientThreads;
 
     public Server() {
         currentNumClients = 0;
         clients = new ArrayList<>();
+        clientThreads = new ArrayList<>();
         messages = new ArrayBlockingQueue<>(100);
         try {
             serverSocket = new ServerSocket(9000);
@@ -38,7 +45,7 @@ public class Server implements Messagable {
     public void acceptConnections() {
         long currentTime = System.currentTimeMillis();
         List<Socket> clientSockets = new ArrayList<>();
-        new Thread(new SocketCloser((int) (MILLISECONDS_TO_WAIT_FOR_CLIENTS/1000), serverSocket)).start();
+        new Thread(new SocketCloser((int) (MILLISECONDS_TO_WAIT_FOR_CLIENTS / 1000), serverSocket)).start();
         while (System.currentTimeMillis() < currentTime + MILLISECONDS_TO_WAIT_FOR_CLIENTS) {
             Socket clientSocket = null;
             try {
@@ -54,45 +61,34 @@ public class Server implements Messagable {
             }
         }
 
+        allPlayerState = new ConcurrentHashMap<>(currentNumClients);
+        for (int i = 0; i < currentNumClients; i++) {
+            allPlayerState.put(i, new PlayerState(0, 0, 0, i));
+        }
+
         for (int i = 0; i < currentNumClients; i++) {
             ConnectionHandler connectionHandler =
-                    new ConnectionHandler(clientSockets.get(i), this,
+                    new ConnectionHandler(clientSockets.get(i), getAllPlayerState(),
                             i, globalMapSeed, currentNumClients);
             clients.add(connectionHandler);
-            new Thread(connectionHandler).start();
+            clientThreads.add(new Thread(connectionHandler));
+            clientThreads.get(i).start();
             System.out.println("Starting client connection...");
         }
     }
 
+    public Map<Integer, PlayerState> getAllPlayerState() {
+        return allPlayerState;
+    }
+
     public void gameLoop() {
-        while (true) {
+        for (Thread t : clientThreads) {
             try {
-                //gather all state
-                System.out.println("Gathering state...");
-                for (ConnectionHandler client : clients) {
-                    client.sendMessage(new Message.GatherState());
-                }
-                Set<PlayerState> allPlayerState = new HashSet<>();
-                for (int i = 0; i < currentNumClients; i++) {
-                    PlayerState playerStateWithID = (PlayerState) messages.take();
-                    allPlayerState.add(playerStateWithID);
-                }
-                System.out.println("All state: \n" + allPlayerState.toString());
-                Message.SendState resultState = new Message.SendState(allPlayerState);
-                //gather all state
-                for (ConnectionHandler client : clients) {
-                    client.sendMessage(resultState);
-                }
+                t.join();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-
         }
-    }
-
-    @Override
-    public void sendMessage(Object object) {
-        messages.add(object);
     }
 
     public static void main(String[] args) {

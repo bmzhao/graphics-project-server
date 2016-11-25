@@ -4,18 +4,17 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 /**
  * Created by brianzhao on 11/23/16.
  */
-public class ConnectionHandler implements Runnable, Messagable {
+public class ConnectionHandler implements Runnable {
     private Socket clientSocket;
     private BlockingQueue<Object> messages;
-    private Messagable mainServer;
+    private Map<Integer,PlayerState> stateMap;
     private ObjectOutputStream clientOutputStream;
     private ObjectInputStream clientInputStream;
     private int id;
@@ -25,10 +24,10 @@ public class ConnectionHandler implements Runnable, Messagable {
 
     //first thing to send to client = client id (for distinguishing person objects)
     // seed for map and total number of players
-    public ConnectionHandler(Socket clientSocket, Messagable sender, int id,
+    public ConnectionHandler(Socket clientSocket, Map<Integer,PlayerState> stateMap, int id,
                              int globalMapSeed, int totalNumPlayers) {
         this.clientSocket = clientSocket;
-        this.mainServer = sender;
+        this.stateMap = stateMap;
         this.id = id;
         this.globalMapSeed = globalMapSeed;
         this.totalNumPlayers = totalNumPlayers;
@@ -48,27 +47,15 @@ public class ConnectionHandler implements Runnable, Messagable {
         }
     }
 
-    @Override
-    public void sendMessage(Object object) {
-        messages.add(object);
-    }
 
     @Override
     public void run() {
         while (true) {
             try {
-                Object message = messages.take();
-                if (message instanceof Message.GatherState) {
-                    //read state of player from socket
-                    currentPlayerState = (PlayerState) clientInputStream.readObject();
-                    //forward state to server
-                    mainServer.sendMessage(currentPlayerState);
-                } else if (message instanceof Message.SendState) {
-                    //mainserver tells us to forward state of all clients to our socket
-                    Set<PlayerState> allState = ((Message.SendState) message).getAllPlayers();
-                    clientOutputStream.writeObject(allState);
-                }
-            } catch (InterruptedException | IOException | ClassNotFoundException e) {
+                currentPlayerState = (PlayerState) clientInputStream.readObject();
+                stateMap.put(currentPlayerState.getId(), currentPlayerState);
+                clientOutputStream.writeObject(stateMap);
+            } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
         }
