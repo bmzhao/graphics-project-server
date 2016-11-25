@@ -1,8 +1,6 @@
 package project;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
@@ -16,8 +14,8 @@ public class ConnectionHandler implements Runnable {
     private Socket clientSocket;
     private BlockingQueue<Object> messages;
     private Map<Integer,PlayerState> stateMap;
-    private ObjectOutputStream clientOutputStream;
-    private ObjectInputStream clientInputStream;
+    private DataOutputStream clientOutputStream;
+    private DataInputStream clientInputStream;
     private int id;
     private int globalMapSeed;
     private int totalNumPlayers;
@@ -35,14 +33,15 @@ public class ConnectionHandler implements Runnable {
         this.messages = new ArrayBlockingQueue<>(100);
 
         try {
-            clientOutputStream = new ObjectOutputStream(clientSocket.getOutputStream());
-            clientInputStream = new ObjectInputStream(clientSocket.getInputStream());
+            clientOutputStream = new DataOutputStream(new BufferedOutputStream(clientSocket.getOutputStream()));
+            clientInputStream = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()));
             //send seed
-            clientOutputStream.writeObject(globalMapSeed);
+            clientOutputStream.writeInt(globalMapSeed);
             //send client id
-            clientOutputStream.writeObject(id);
+            clientOutputStream.writeInt(id);
             //send total number of players
-            clientOutputStream.writeObject(totalNumPlayers);
+            clientOutputStream.writeInt(totalNumPlayers);
+            clientOutputStream.flush();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -53,10 +52,22 @@ public class ConnectionHandler implements Runnable {
     public void run() {
         while (true) {
             try {
-                currentPlayerState = (PlayerState) clientInputStream.readObject();
-                stateMap.put(currentPlayerState.getId(), currentPlayerState);
-                clientOutputStream.writeObject(new HashMap<>(stateMap));
-            } catch (IOException | ClassNotFoundException e) {
+                float x = clientInputStream.readFloat();
+                float y = clientInputStream.readFloat();
+                float z = clientInputStream.readFloat();
+                currentPlayerState = new PlayerState(x, y, z, id);
+                stateMap.put(id, currentPlayerState);
+
+                Map<Integer, PlayerState> toSend = new HashMap<>(stateMap);
+                for (Integer id : toSend.keySet()) {
+                    clientOutputStream.writeInt(id);
+                    PlayerState playerState = toSend.get(id);
+                    clientOutputStream.writeFloat(playerState.getX());
+                    clientOutputStream.writeFloat(playerState.getY());
+                    clientOutputStream.writeFloat(playerState.getZ());
+                }
+                clientOutputStream.flush();
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }
