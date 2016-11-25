@@ -2,68 +2,74 @@ package project;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 /**
  * Created by brianzhao on 11/23/16.
  */
-public class ConnectionHandler implements Runnable,Messagable {
+public class ConnectionHandler implements Runnable {
     private Socket clientSocket;
     private BlockingQueue<Object> messages;
-    private Messagable mainServer;
-    private ObjectOutputStream clientOutputStream;
-    private ObjectInputStream clientInputStream;
+    private Map<Integer,PlayerState> stateMap;
+    private DataOutputStream clientOutputStream;
+    private DataInputStream clientInputStream;
     private int id;
     private int globalMapSeed;
+    private int totalNumPlayers;
+    private PlayerState currentPlayerState;
 
-    public ConnectionHandler(Socket clientSocket, Messagable sender, int id, int globalMapSeed) {
+    //first thing to send to client = client id (for distinguishing person objects)
+    // seed for map and total number of players
+    public ConnectionHandler(Socket clientSocket, Map<Integer,PlayerState> stateMap, int id,
+                             int globalMapSeed, int totalNumPlayers) {
         this.clientSocket = clientSocket;
-        this.mainServer = sender;
+        this.stateMap = stateMap;
         this.id = id;
         this.globalMapSeed = globalMapSeed;
+        this.totalNumPlayers = totalNumPlayers;
         this.messages = new ArrayBlockingQueue<>(100);
+
         try {
-            clientOutputStream = new ObjectOutputStream(clientSocket.getOutputStream());
-            clientInputStream = new ObjectInputStream(clientSocket.getInputStream());
-            clientOutputStream.writeObject(globalMapSeed);
+            clientOutputStream = new DataOutputStream(new BufferedOutputStream(clientSocket.getOutputStream()));
+            clientInputStream = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()));
+            //send seed
+            clientOutputStream.writeInt(globalMapSeed);
+            //send client id
+            clientOutputStream.writeInt(id);
+            //send total number of players
+            clientOutputStream.writeInt(totalNumPlayers);
+            clientOutputStream.flush();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    @Override
-    public void sendMessage(Object object) {
-        messages.add(object);
-    }
 
     @Override
     public void run() {
         while (true) {
             try {
-                Object message = messages.take();
-                if (message instanceof Message.GatherState) {
-                    //read state of player from socket
-                    PlayerState playerState = (PlayerState) clientInputStream.readObject();
-                    //forward state to server
-                    mainServer.sendMessage(new PlayerStateWithID(playerState,id));
-                } else if (message instanceof Message.SendState) {
-                    List<PlayerStateWithID> allState = ((Message.SendState) message).getAllPlayers();
-                    List<PlayerState> stateOfAllOtherPlayers = new ArrayList<>();
-                    for (PlayerStateWithID playerStateWithID : allState) {
-                        if (playerStateWithID.getId() != this.id) {
-                            stateOfAllOtherPlayers.add(playerStateWithID.getPlayerState());
-                        }
-                    }
-                    clientOutputStream.writeObject(stateOfAllOtherPlayers);
+                float x = clientInputStream.readFloat();
+                float y = clientInputStream.readFloat();
+                float z = clientInputStream.readFloat();
+                currentPlayerState = new PlayerState(x, y, z, id);
+                stateMap.put(id, currentPlayerState);
+
+                Map<Integer, PlayerState> toSend = new HashMap<>(stateMap);
+                for (Integer id : toSend.keySet()) {
+                    clientOutputStream.writeInt(id);
+                    PlayerState playerState = toSend.get(id);
+                    clientOutputStream.writeFloat(playerState.getX());
+                    clientOutputStream.writeFloat(playerState.getY());
+                    clientOutputStream.writeFloat(playerState.getZ());
                 }
-            } catch (InterruptedException | IOException | ClassNotFoundException e) {
+                clientOutputStream.flush();
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
-
-
 }

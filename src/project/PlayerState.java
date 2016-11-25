@@ -8,13 +8,14 @@ import java.io.Serializable;
 public class PlayerState implements Serializable{
     private static final long serialVersionUID = 1123789127L;
 
+    private final int id;
+    private final float x, y, z;
 
-    private float x, y, z;
-
-    public PlayerState(float x, float y, float z) {
+    public PlayerState(float x, float y, float z, int id) {
         this.x = x;
         this.y = y;
         this.z = z;
+        this.id = id;
     }
 
     public float getX() {
@@ -27,6 +28,28 @@ public class PlayerState implements Serializable{
 
     public float getZ() {
         return z;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        PlayerState that = (PlayerState) o;
+
+        if (id != that.id) return false;
+        if (Float.compare(that.x, x) != 0) return false;
+        if (Float.compare(that.y, y) != 0) return false;
+        return Float.compare(that.z, z) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+        return id;
     }
 
     @Override

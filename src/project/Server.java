@@ -5,9 +5,11 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Created by brianzhao on 11/23/16.
@@ -16,17 +18,23 @@ import java.util.concurrent.BlockingQueue;
  * Each client on separate socket, wait until we have all clients state,
  * and then broadcast all state to all clients
  */
-public class Server implements Messagable {
-    private static final int NUM_CLIENTS = 2;
+public class Server {
+    private static final long MILLISECONDS_TO_WAIT_FOR_CLIENTS = 20000;
     private int currentNumClients;
     private List<ConnectionHandler> clients;
     private ServerSocket serverSocket;
     private BlockingQueue<Object> messages;
     private int globalMapSeed;
+    private Map<Integer, PlayerState> allPlayerState;
+    private List<Thread> clientThreads;
+    private static final float initialX = 50;
+    private static final float initialY = 80;
+    private static final float initialZ = 30;
 
     public Server() {
         currentNumClients = 0;
         clients = new ArrayList<>();
+        clientThreads = new ArrayList<>();
         messages = new ArrayBlockingQueue<>(100);
         try {
             serverSocket = new ServerSocket(9000);
@@ -36,8 +44,12 @@ public class Server implements Messagable {
         globalMapSeed = new Random().nextInt();
     }
 
+    //accept clients until 20 second timer runs out
     public void acceptConnections() {
-        while (currentNumClients < NUM_CLIENTS) {
+        long currentTime = System.currentTimeMillis();
+        List<Socket> clientSockets = new ArrayList<>();
+        new Thread(new SocketCloser((int) (MILLISECONDS_TO_WAIT_FOR_CLIENTS / 1000), serverSocket)).start();
+        while (System.currentTimeMillis() < currentTime + MILLISECONDS_TO_WAIT_FOR_CLIENTS) {
             Socket clientSocket = null;
             try {
                 clientSocket = serverSocket.accept();
@@ -46,44 +58,40 @@ public class Server implements Messagable {
                 e.printStackTrace();
             }
             //delegate to new thread
-            ConnectionHandler connectionHandler =
-                    new ConnectionHandler(clientSocket, this, currentNumClients, globalMapSeed);
-            clients.add(connectionHandler);
-
-            new Thread(connectionHandler).start();
-            currentNumClients++;
+            if (clientSocket != null) {
+                clientSockets.add(clientSocket);
+                currentNumClients++;
+            }
         }
+
+        allPlayerState = new ConcurrentHashMap<>(currentNumClients);
+        for (int i = 0; i < currentNumClients; i++) {
+            allPlayerState.put(i, new PlayerState(initialX, initialY, initialZ, i));
+        }
+
+        for (int i = 0; i < currentNumClients; i++) {
+            ConnectionHandler connectionHandler =
+                    new ConnectionHandler(clientSockets.get(i), getAllPlayerState(),
+                            i, globalMapSeed, currentNumClients);
+            clients.add(connectionHandler);
+            clientThreads.add(new Thread(connectionHandler));
+            clientThreads.get(i).start();
+            System.out.println("Starting client connection...");
+        }
+    }
+
+    public Map<Integer, PlayerState> getAllPlayerState() {
+        return allPlayerState;
     }
 
     public void gameLoop() {
-        while (true) {
+        for (Thread t : clientThreads) {
             try {
-                //gather all state
-                System.out.println("Gathering state...");
-                for (ConnectionHandler client : clients) {
-                    client.sendMessage(new Message.GatherState());
-                }
-                List<PlayerStateWithID> allPlayerState = new ArrayList<>();
-                for (int i = 0; i < currentNumClients; i++) {
-                    PlayerStateWithID playerStateWithID = (PlayerStateWithID) messages.take();
-                    allPlayerState.add(playerStateWithID);
-                }
-                System.out.println("All state: \n" + allPlayerState.toString());
-                Message.SendState resultState = new Message.SendState(allPlayerState);
-                //gather all state
-                for (ConnectionHandler client : clients) {
-                    client.sendMessage(resultState);
-                }
+                t.join();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-
         }
-    }
-
-    @Override
-    public void sendMessage(Object object) {
-        messages.add(object);
     }
 
     public static void main(String[] args) {
