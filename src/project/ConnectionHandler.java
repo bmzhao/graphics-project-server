@@ -66,10 +66,7 @@ public class ConnectionHandler implements Runnable, Messagable {
                 } else if (message instanceof Message.SendState) {
                     //mainserver tells us to forward state of all clients to our socket
                     Set<PlayerState> allState = ((Message.SendState) message).getAllPlayers();
-                    Set<PlayerState> stateOfAllOtherPlayers = new HashSet<>(allState);
-                    stateOfAllOtherPlayers.remove(currentPlayerState);
-                    //only forward the information of all players except this player
-                    clientOutputStream.writeObject(stateOfAllOtherPlayers);
+                    clientOutputStream.writeObject(allState);
                 }
             } catch (InterruptedException | IOException | ClassNotFoundException e) {
                 e.printStackTrace();
