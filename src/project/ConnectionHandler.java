@@ -1,10 +1,10 @@
 package project;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -12,7 +12,7 @@ import java.util.concurrent.BlockingQueue;
 /**
  * Created by brianzhao on 11/23/16.
  */
-public class ConnectionHandler implements Runnable,Messagable {
+public class ConnectionHandler implements Runnable, Messagable {
     private Socket clientSocket;
     private BlockingQueue<Object> messages;
     private Messagable mainServer;

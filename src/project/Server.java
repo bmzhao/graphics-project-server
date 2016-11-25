@@ -38,6 +38,7 @@ public class Server implements Messagable {
     public void acceptConnections() {
         long currentTime = System.currentTimeMillis();
         List<Socket> clientSockets = new ArrayList<>();
+        new Thread(new SocketCloser((int) (MILLISECONDS_TO_WAIT_FOR_CLIENTS/1000), serverSocket)).start();
         while (System.currentTimeMillis() < currentTime + MILLISECONDS_TO_WAIT_FOR_CLIENTS) {
             Socket clientSocket = null;
             try {
@@ -47,14 +48,16 @@ public class Server implements Messagable {
                 e.printStackTrace();
             }
             //delegate to new thread
-            clientSockets.add(clientSocket);
-            currentNumClients++;
+            if (clientSocket != null) {
+                clientSockets.add(clientSocket);
+                currentNumClients++;
+            }
         }
 
         for (int i = 0; i < currentNumClients; i++) {
             ConnectionHandler connectionHandler =
                     new ConnectionHandler(clientSockets.get(i), this,
-                            currentNumClients, globalMapSeed, currentNumClients);
+                            i, globalMapSeed, currentNumClients);
             clients.add(connectionHandler);
             new Thread(connectionHandler).start();
             System.out.println("Starting client connection...");
