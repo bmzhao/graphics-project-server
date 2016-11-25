@@ -27,6 +27,9 @@ public class Server {
     private int globalMapSeed;
     private Map<Integer, PlayerState> allPlayerState;
     private List<Thread> clientThreads;
+    private static final float initialX = 50;
+    private static final float initialY = 80;
+    private static final float initialZ = 30;
 
     public Server() {
         currentNumClients = 0;
@@ -63,7 +66,7 @@ public class Server {
 
         allPlayerState = new ConcurrentHashMap<>(currentNumClients);
         for (int i = 0; i < currentNumClients; i++) {
-            allPlayerState.put(i, new PlayerState(0, 0, 0, i));
+            allPlayerState.put(i, new PlayerState(initialX, initialY, initialZ, i));
         }
 
         for (int i = 0; i < currentNumClients; i++) {

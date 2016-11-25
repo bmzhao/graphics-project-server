@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -54,7 +55,7 @@ public class ConnectionHandler implements Runnable {
             try {
                 currentPlayerState = (PlayerState) clientInputStream.readObject();
                 stateMap.put(currentPlayerState.getId(), currentPlayerState);
-                clientOutputStream.writeObject(stateMap);
+                clientOutputStream.writeObject(new HashMap<>(stateMap));
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
