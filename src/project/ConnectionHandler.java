@@ -12,8 +12,7 @@ import java.util.concurrent.BlockingQueue;
  */
 public class ConnectionHandler implements Runnable {
     private Socket clientSocket;
-    private BlockingQueue<Object> messages;
-    private Map<Integer,PlayerState> stateMap;
+    private Map<Integer, PlayerState> stateMap;
     private DataOutputStream clientOutputStream;
     private DataInputStream clientInputStream;
     private int id;
@@ -23,14 +22,13 @@ public class ConnectionHandler implements Runnable {
 
     //first thing to send to client = client id (for distinguishing person objects)
     // seed for map and total number of players
-    public ConnectionHandler(Socket clientSocket, Map<Integer,PlayerState> stateMap, int id,
+    public ConnectionHandler(Socket clientSocket, Map<Integer, PlayerState> stateMap, int id,
                              int globalMapSeed, int totalNumPlayers) {
         this.clientSocket = clientSocket;
         this.stateMap = stateMap;
         this.id = id;
         this.globalMapSeed = globalMapSeed;
         this.totalNumPlayers = totalNumPlayers;
-        this.messages = new ArrayBlockingQueue<>(100);
 
         try {
             clientOutputStream = new DataOutputStream(new BufferedOutputStream(clientSocket.getOutputStream()));
