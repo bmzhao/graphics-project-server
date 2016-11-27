@@ -9,6 +9,7 @@ import java.util.Map;
  * Created by brianzhao on 11/23/16.
  */
 public class ConnectionHandler implements Runnable {
+    public static final int SERVER_DELTA_TRIAL_COUNT = 5;
     private Socket clientSocket;
     private Map<Integer, PlayerState> stateMap;
     private DataOutputStream clientOutputStream;
@@ -31,6 +32,7 @@ public class ConnectionHandler implements Runnable {
         try {
             clientOutputStream = new DataOutputStream(new BufferedOutputStream(clientSocket.getOutputStream()));
             clientInputStream = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()));
+            timeDeltaExchange();
             //send seed
             clientOutputStream.writeInt(globalMapSeed);
             //send client id
@@ -42,7 +44,17 @@ public class ConnectionHandler implements Runnable {
             e.printStackTrace();
         }
     }
-
+    public void timeDeltaExchange(){
+        try {
+            for (int i = 0; i < SERVER_DELTA_TRIAL_COUNT; i++) {
+                clientInputStream.read();
+                clientOutputStream.writeLong(System.currentTimeMillis());
+                clientOutputStream.flush();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     @Override
     public void run() {
@@ -68,6 +80,7 @@ public class ConnectionHandler implements Runnable {
                 System.out.println(toSend);
             } catch (IOException e) {
                 e.printStackTrace();
+                System.exit(0);
             }
         }
     }
