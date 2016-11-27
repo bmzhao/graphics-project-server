@@ -10,12 +10,14 @@ public class PlayerState implements Serializable{
 
     private final int id;
     private final float x, y, z;
+    private long time;
 
-    public PlayerState(float x, float y, float z, int id) {
+    public PlayerState(float x, float y, float z, int id, long time) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.id = id;
+        this.time = time;
     }
 
     public float getX() {
@@ -32,6 +34,10 @@ public class PlayerState implements Serializable{
 
     public int getId() {
         return id;
+    }
+
+    public long getTime() {
+        return time;
     }
 
     @Override

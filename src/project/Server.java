@@ -23,7 +23,6 @@ public class Server {
     private int currentNumClients;
     private List<ConnectionHandler> clients;
     private ServerSocket serverSocket;
-    private BlockingQueue<Object> messages;
     private int globalMapSeed;
     private Map<Integer, PlayerState> allPlayerState;
     private List<Thread> clientThreads;
@@ -36,7 +35,6 @@ public class Server {
         currentNumClients = 0;
         clients = new ArrayList<>();
         clientThreads = new ArrayList<>();
-        messages = new ArrayBlockingQueue<>(100);
         try {
             serverSocket = new ServerSocket(9000);
         } catch (IOException e) {
@@ -47,36 +45,12 @@ public class Server {
 
     //accept clients until 20 second timer runs out
     public void acceptConnections() {
-        long currentTime = System.currentTimeMillis();
-        List<Socket> clientSockets = new ArrayList<>();
-        if(expectedPlayers == -1){
-            new Thread(new SocketCloser((int) (MILLISECONDS_TO_WAIT_FOR_CLIENTS / 1000), serverSocket)).start();
-        }
-        while (System.currentTimeMillis() < currentTime + MILLISECONDS_TO_WAIT_FOR_CLIENTS) {
-            Socket clientSocket = null;
-            if(expectedPlayers == 0){
-                break;
-            }
-            if(expectedPlayers > 0) {
-                System.out.println("waiting for " + expectedPlayers + " more player" + (expectedPlayers > 1 ? "s" : ""));
-            }
-            try {
-                clientSocket = serverSocket.accept();
-                expectedPlayers--;
-                System.out.println("client connected");
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            //delegate to new thread
-            if (clientSocket != null) {
-                clientSockets.add(clientSocket);
-                currentNumClients++;
-            }
-        }
+        List<Socket> clientSockets = waitForXNumberOfConnections();
 
         allPlayerState = new ConcurrentHashMap<>(currentNumClients);
+        long time = System.currentTimeMillis();
         for (int i = 0; i < currentNumClients; i++) {
-            allPlayerState.put(i, new PlayerState(initialX, initialY, initialZ, i));
+            allPlayerState.put(i, new PlayerState(initialX, initialY, initialZ, i, time));
         }
 
         for (int i = 0; i < currentNumClients; i++) {
@@ -88,6 +62,45 @@ public class Server {
             clientThreads.get(i).start();
             System.out.println("Starting client connection...");
         }
+    }
+
+    private List<Socket> waitForConnectionsBasedOnTime(long currentTime) {
+        List<Socket> clientSockets = new ArrayList<>();
+        new Thread(new SocketCloser((int) (MILLISECONDS_TO_WAIT_FOR_CLIENTS / 1000), serverSocket)).start();
+        while (System.currentTimeMillis() < currentTime + MILLISECONDS_TO_WAIT_FOR_CLIENTS) {
+            Socket clientSocket = null;
+            try {
+                clientSocket = serverSocket.accept();
+                System.out.println("client connected");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            //delegate to new thread
+            if (clientSocket != null) {
+                clientSockets.add(clientSocket);
+                currentNumClients++;
+            }
+        }
+        return clientSockets;
+    }
+
+    private List<Socket> waitForXNumberOfConnections() {
+        List<Socket> clientSockets = new ArrayList<>();
+        for (int i = 0; i < expectedPlayers; i++) {
+            Socket clientSocket = null;
+            try {
+                clientSocket = serverSocket.accept();
+                System.out.println("client " + i + " connected out of " + expectedPlayers);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            //delegate to new thread
+            if (clientSocket != null) {
+                clientSockets.add(clientSocket);
+                currentNumClients++;
+            }
+        }
+        return clientSockets;
     }
 
     public Map<Integer, PlayerState> getAllPlayerState() {
