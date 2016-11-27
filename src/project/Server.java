@@ -30,6 +30,7 @@ public class Server {
     private static final float initialX = 50;
     private static final float initialY = 80;
     private static final float initialZ = 30;
+    private int expectedPlayers = -1;
 
     public Server() {
         currentNumClients = 0;
@@ -48,11 +49,20 @@ public class Server {
     public void acceptConnections() {
         long currentTime = System.currentTimeMillis();
         List<Socket> clientSockets = new ArrayList<>();
-        new Thread(new SocketCloser((int) (MILLISECONDS_TO_WAIT_FOR_CLIENTS / 1000), serverSocket)).start();
+        if(expectedPlayers == -1){
+            new Thread(new SocketCloser((int) (MILLISECONDS_TO_WAIT_FOR_CLIENTS / 1000), serverSocket)).start();
+        }
         while (System.currentTimeMillis() < currentTime + MILLISECONDS_TO_WAIT_FOR_CLIENTS) {
             Socket clientSocket = null;
+            if(expectedPlayers == 0){
+                break;
+            }
+            if(expectedPlayers > 0) {
+                System.out.println("waiting for " + expectedPlayers + " more player" + (expectedPlayers > 1 ? "s" : ""));
+            }
             try {
                 clientSocket = serverSocket.accept();
+                expectedPlayers--;
                 System.out.println("client connected");
             } catch (IOException e) {
                 e.printStackTrace();
@@ -96,6 +106,10 @@ public class Server {
 
     public static void main(String[] args) {
         Server server = new Server();
+        String players = System.getProperties().getProperty("players");
+        if(players != null){
+            server.expectedPlayers = Integer.parseInt(players);
+        }
         server.acceptConnections();
         server.gameLoop();
     }
