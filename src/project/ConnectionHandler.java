@@ -65,6 +65,7 @@ public class ConnectionHandler implements Runnable {
                     clientOutputStream.writeLong(playerState.getTime());
                 }
                 clientOutputStream.flush();
+                System.out.println(toSend);
             } catch (IOException e) {
                 e.printStackTrace();
             }

@@ -60,10 +60,12 @@ public class PlayerState implements Serializable{
 
     @Override
     public String toString() {
-        return "project.PlayerState{" +
-                "x=" + x +
+        return "PlayerState{" +
+                "id=" + id +
+                ", x=" + x +
                 ", y=" + y +
                 ", z=" + z +
+                ", time=" + time +
                 '}';
     }
 }
