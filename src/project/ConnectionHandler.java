@@ -46,6 +46,8 @@ public class ConnectionHandler implements Runnable {
     }
     public void timeDeltaExchange(){
         try {
+            clientOutputStream.write(0);
+            clientOutputStream.flush();
             for (int i = 0; i < SERVER_DELTA_TRIAL_COUNT; i++) {
                 clientInputStream.read();
                 clientOutputStream.writeLong(System.currentTimeMillis());
