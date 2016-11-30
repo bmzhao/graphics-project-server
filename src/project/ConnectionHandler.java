@@ -16,35 +16,43 @@ public class ConnectionHandler implements Runnable {
     private DataInputStream clientInputStream;
     private int id;
     private int globalMapSeed;
-    private int totalNumPlayers;
     private PlayerState currentPlayerState;
 
     //first thing to send to client = client id (for distinguishing person objects)
     // seed for map and total number of players
     public ConnectionHandler(Socket clientSocket, Map<Integer, PlayerState> stateMap, int id,
-                             int globalMapSeed, int totalNumPlayers) {
+                             int globalMapSeed) {
         this.clientSocket = clientSocket;
         this.stateMap = stateMap;
         this.id = id;
         this.globalMapSeed = globalMapSeed;
-        this.totalNumPlayers = totalNumPlayers;
 
         try {
             clientOutputStream = new DataOutputStream(new BufferedOutputStream(clientSocket.getOutputStream()));
             clientInputStream = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        stateMap.put(id, new PlayerState(Constants.initialX, Constants.initialY, Constants.initialZ, id, System.currentTimeMillis()));
+        initializeCommunication();
+    }
+
+    private void initializeCommunication() {
+        try {
             timeDeltaExchange();
             //send seed
             clientOutputStream.writeInt(globalMapSeed);
             //send client id
             clientOutputStream.writeInt(id);
             //send total number of players
-            clientOutputStream.writeInt(totalNumPlayers);
             clientOutputStream.flush();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
-    public void timeDeltaExchange(){
+
+
+    private void timeDeltaExchange() {
         try {
             clientOutputStream.write(0);
             clientOutputStream.flush();
@@ -70,6 +78,7 @@ public class ConnectionHandler implements Runnable {
                 stateMap.put(id, currentPlayerState);
 
                 Map<Integer, PlayerState> toSend = new HashMap<>(stateMap);
+                clientOutputStream.writeInt(toSend.size());
                 for (Integer id : toSend.keySet()) {
                     clientOutputStream.writeInt(id);
                     PlayerState playerState = toSend.get(id);
@@ -79,11 +88,13 @@ public class ConnectionHandler implements Runnable {
                     clientOutputStream.writeLong(playerState.getTime());
                 }
                 clientOutputStream.flush();
-                System.out.println(toSend);
             } catch (IOException e) {
                 e.printStackTrace();
-                System.exit(0);
+                System.out.println("Client " + id + " + exiting..");
+                stateMap.remove(id);
+                break;
             }
         }
+        System.out.println("Thread " + id + " terminated.");
     }
 }
